@@ -1,5 +1,17 @@
 #!/usr/bin/bash
 
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+if [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
+  PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+  TORCHRUN_BIN="${PROJECT_ROOT}/.venv/bin/torchrun"
+else
+  PYTHON_BIN="$(command -v python)"
+  TORCHRUN_BIN="$(command -v torchrun)"
+fi
+
 params=""
 if [ $# -ne 0 ]; then
     params="$*"
@@ -12,10 +24,10 @@ NNODE=${NNODE:-"1"}
 NGPU=${NGPU:-"8"}
 LOG_RANK=${LOG_RANK:-0}
 
-if [[ -z "${MASTER_ADDR}" ]]; then
+if [[ -z "${MASTER_ADDR:-}" ]]; then
   export MASTER_ADDR="localhost"
 fi
-if [[ -z "${MASTER_PORT}" ]]; then
+if [[ -z "${MASTER_PORT:-}" ]]; then
   export MASTER_PORT="0"
 fi
 
@@ -66,56 +78,66 @@ steps=$(grep -oP '(?<=--training.steps )[^ ]+' <<< "$params")
 config=$(grep -oP '(?<=--model.config )[^ ]+' <<< "$params")
 tokenizer=$(grep -oP '(?<=--model.tokenizer_path )[^ ]+' <<< "$params")
 model=$(
-  python -c "import fla, sys; from transformers import AutoConfig; print(AutoConfig.from_pretrained(sys.argv[1]).to_json_string())" "$config" | jq -r '.model_type'
+  "$PYTHON_BIN" -c "import fla, sys; from transformers import AutoConfig; print(AutoConfig.from_pretrained(sys.argv[1]).to_json_string())" "$config" | jq -r '.model_type'
 )
 
-mkdir -p $path
-cp * $path
-cp -r configs $path
-cp -r flame   $path
-cp -r 3rdparty/flash-linear-attention/fla $path
-cp -r 3rdparty/torchtitan/torchtitan $path
+mkdir -p "$path"
+for file in LICENSE pyproject.toml README.md setup.py train.sh uv.lock; do
+  if [[ -e "$file" ]]; then
+    cp "$file" "$path"
+  fi
+done
+for dir in build configs custom_models flame flame.egg-info tests utils; do
+  if [[ -d "$dir" ]]; then
+    cp -r "$dir" "$path"
+  fi
+done
+for dir in 3rdparty/flash-linear-attention/fla 3rdparty/torchtitan/torchtitan; do
+  if [[ -d "$dir" ]]; then
+    cp -r "$dir" "$path"
+  fi
+done
 
 # for offline systems
 # export TRANSFORMERS_OFFLINE=1
 # export HF_DATASETS_OFFLINE=1
 # export HF_HUB_OFFLINE=1
-if [ "$date" == "" ]; then
+if [[ -z "${date:-}" ]]; then
   date=$(date +%Y%m%d%H%M)
 fi
-RUN_NAME="$model-$(basename $path)"
+RUN_NAME="$model-$(basename "$path")"
 RUN_ID="$RUN_NAME-$date"
 
 export WANDB_RESUME=allow
-if [[ -z "${WANDB_PROJECT}" ]]; then
-  export WANDB_PROJECT="fla"
+if [[ -z "${WANDB_PROJECT:-}" ]]; then
+  export WANDB_PROJECT="fla_new"
 fi
-if [[ -z "${WANDB_NAME}" ]]; then
+if [[ -z "${WANDB_NAME:-}" ]]; then
   export WANDB_NAME="$RUN_NAME"
 fi
-if [[ -z "${WANDB_RUN_ID}" ]]; then
+if [[ -z "${WANDB_RUN_ID:-}" ]]; then
   export WANDB_RUN_ID="$RUN_ID"
 fi
 
 PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True" \
-torchrun --nnodes=${NNODE} \
+"$TORCHRUN_BIN" --nnodes=${NNODE} \
   --nproc_per_node=${NGPU} \
   --rdzv_backend c10d \
   --rdzv_endpoint "${MASTER_ADDR}:${MASTER_PORT}" \
   --local-ranks-filter ${LOG_RANK} \
   --role rank \
   --tee 3 \
-  --log-dir $path/logs \
+  --log-dir "$path/logs" \
   -m flame.train \
   $params
 
 echo "TRAINING DONE!"
 echo "Converting the DCP checkpoints to HF format..."
 
-python -m flame.utils.convert_dcp_to_hf \
-  --path $path \
+"$PYTHON_BIN" -m flame.utils.convert_dcp_to_hf \
+  --path "$path" \
   --step $steps \
-  --config $config \
-  --tokenizer $tokenizer
+  --config "$config" \
+  --tokenizer "$tokenizer"
 
 echo "RUNNING DONE!"

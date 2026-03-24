@@ -12,7 +12,6 @@ import datasets
 import numpy as np
 import torch
 from datasets import Dataset, IterableDataset, interleave_datasets, load_dataset
-from datasets.iterable_dataset import ShufflingConfig
 from torch.distributed.checkpoint.stateful import Stateful
 from torchdata.stateful_dataloader import StatefulDataLoader
 from transformers import PreTrainedTokenizer
@@ -302,7 +301,6 @@ def shuffle(
         info=dataset._info.copy(),
         split=dataset._split,
         formatting=dataset._formatting,
-        shuffling=ShufflingConfig(generator=generator, _original_seed=seed),
         distributed=copy.deepcopy(dataset._distributed),
         token_per_repo_id=dataset._token_per_repo_id,
     )
@@ -563,7 +561,7 @@ def build_dataset(
             split=dataset_split,
             data_dir=data_dir,
             data_files=data_files,
-            trust_remote_code=True,
+            # trust_remote_code=True,
             streaming=streaming,
             num_proc=num_workers if not streaming else None,
         )
@@ -590,7 +588,7 @@ def build_dataset(
                     split=dataset_split,
                     data_dir=data_dir,
                     data_files=data_files,
-                    trust_remote_code=True,
+                    # trust_remote_code=True,
                     streaming=False,
                     num_proc=num_workers,
                 )
@@ -652,7 +650,7 @@ def build_dataset(
                 split=dataset_splits[i],
                 data_dir=data_dirs[i],
                 data_files=data_files[i],
-                trust_remote_code=True,
+                # trust_remote_code=True,
                 streaming=streaming,
                 num_proc=(
                     num_workers
@@ -692,7 +690,7 @@ def build_dataset(
                         split=dataset_splits[i],
                         data_dir=data_dirs[i],
                         data_files=data_files[i],
-                        trust_remote_code=True,
+                        # trust_remote_code=True,
                         streaming=False,
                         num_proc=num_workers,
                     )

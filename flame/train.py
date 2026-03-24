@@ -142,7 +142,7 @@ def main(job_config: JobConfig):
     logger.info("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(
         job_config.model.tokenizer_path,
-        trust_remote_code=True,
+        # trust_remote_code=True,
         model_max_length=int(1e10),
     )
     logger.info(f"{tokenizer}")

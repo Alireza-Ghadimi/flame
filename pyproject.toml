@@ -27,6 +27,7 @@ dependencies = [
     'wandb',
     'tiktoken',
     'tensorboard',
+    "torchtitan>=0.2.2",
 ]
 
 [project.optional-dependencies]

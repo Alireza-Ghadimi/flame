@@ -24,6 +24,7 @@ wandb
 *.html
 
 # log and config files
+/logs
 log.*
 *.log
 *.cfg
